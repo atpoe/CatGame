@@ -5,6 +5,13 @@ body {
     overflow: hidden;
     height: 100vh;
     font-family: Arial, sans-serif;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body.game-running {
@@ -18,11 +25,14 @@ body.game-paused {
 /* Base target styling */
 #chase-target {
     position: absolute;
-    width: 20px;
-    height: 20px;
+    width: 25px;
+    height: 25px;
     border-radius: 50%;
     transition: all 0.8s ease-in-out;
     z-index: 1000;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* Dot target */
@@ -37,7 +47,7 @@ body.game-paused {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 25px;
     border-radius: 0;
 }
 
@@ -53,6 +63,9 @@ body.game-paused {
     border-radius: 50%;
     transition: all 0.1s ease-out;
     z-index: 999;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .instructions {
@@ -63,6 +76,9 @@ body.game-paused {
     font-size: 12px;
     opacity: 0.7;
     z-index: 100;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .game-status {
@@ -73,6 +89,9 @@ body.game-paused {
     font-size: 10px;
     opacity: 0.8;
     z-index: 100;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .settings-toggle {
@@ -82,11 +101,17 @@ body.game-paused {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
-    padding: 5px 10px;
+    padding: 8px 12px;
     cursor: pointer;
     border-radius: 5px;
-    font-size: 12px;
+    font-size: 14px;
     z-index: 200;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
 }
 
 .settings-toggle:hover {
@@ -95,18 +120,20 @@ body.game-paused {
 
 .settings-panel {
     position: fixed;
-    top: 50px;
+    top: 60px;
     right: 10px;
     background: rgba(0, 0, 0, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
     padding: 20px;
     color: white;
-    font-size: 12px;
+    font-size: 14px;
     z-index: 200;
     display: none;
-    min-width: 200px;
+    min-width: 250px;
     backdrop-filter: blur(10px);
+    max-height: 80vh;
+    overflow-y: auto;
 }
 
 .settings-panel.visible {
@@ -114,23 +141,27 @@ body.game-paused {
 }
 
 .setting-group {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 .setting-group label {
     display: block;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
     font-weight: bold;
+    font-size: 14px;
 }
 
 .setting-group input,
 .setting-group select {
     width: 100%;
-    padding: 5px;
+    padding: 8px;
     border: 1px solid #444;
     background: rgba(255, 255, 255, 0.1);
     color: white;
-    border-radius: 3px;
+    border-radius: 5px;
+    font-size: 14px;
+    min-height: 44px;
+    box-sizing: border-box;
 }
 
 .setting-group select {
@@ -139,34 +170,58 @@ body.game-paused {
 }
 
 .setting-group select option {
-    background: rgba(0, 0, 0, 0.95);
+    background: rgba(0, 0, 0, 0.9);
     color: white;
     border: none;
-    padding: 5px;
+    padding: 8px;
 }
 
 .setting-group select option:hover {
     background: rgba(255, 255, 255, 0.1);
 }
 
-.setting-group select option:checked {
-    background: rgba(255, 255, 255, 0.2);
-}
-
 .setting-group input[type="range"] {
     cursor: pointer;
+    -webkit-appearance: none;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    outline: none;
+    border-radius: 3px;
+    min-height: 44px;
+}
+
+.setting-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #ff6666;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.setting-group input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #ff6666;
+    cursor: pointer;
+    border-radius: 50%;
+    border: none;
 }
 
 .setting-group input[type="color"] {
-    height: 30px;
+    min-height: 44px;
     cursor: pointer;
-    border: 2px solid #444;
+    border: none;
+    padding: 2px;
 }
 
 .value-display {
     color: #ff6666;
-    font-size: 10px;
-    margin-top: 2px;
+    font-size: 12px;
+    margin-top: 4px;
+    text-align: center;
+    font-weight: bold;
 }
 
 .pause-overlay {
@@ -174,105 +229,131 @@ body.game-paused {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 24px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 32px;
     font-weight: bold;
     z-index: 150;
     display: none;
     text-align: center;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .pause-overlay.visible {
     display: block;
 }
 
-.pause-overlay .sub-text {
-    font-size: 12px;
+.sub-text {
+    font-size: 16px;
+    font-weight: normal;
     margin-top: 10px;
-    opacity: 0.8;
+    opacity: 0.7;
 }
 
-/* Responsive adjustments */
+/* Mobile and tablet optimizations */
 @media (max-width: 768px) {
     .settings-panel {
+        top: 60px;
         right: 5px;
         left: 5px;
-        top: 40px;
         min-width: auto;
+        max-width: calc(100vw - 20px);
+        padding: 15px;
     }
 
     .instructions {
         font-size: 10px;
+        top: 5px;
+        left: 5px;
+    }
+
+    .game-status {
+        font-size: 9px;
+        top: 20px;
         left: 5px;
     }
 
     .settings-toggle {
+        top: 5px;
         right: 5px;
-        padding: 3px 6px;
-        font-size: 10px;
+        min-width: 50px;
+        min-height: 50px;
+        font-size: 16px;
+    }
+
+    .pause-overlay {
+        font-size: 28px;
+    }
+
+    .pause-overlay .sub-text {
+        font-size: 14px;
     }
 }
 
 @media (max-width: 480px) {
     .settings-panel {
-        padding: 15px;
+        padding: 12px;
+        font-size: 13px;
+    }
+
+    .setting-group {
+        margin-bottom: 15px;
+    }
+
+    .setting-group label {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+
+    .setting-group input,
+    .setting-group select {
+        font-size: 13px;
+        padding: 10px;
+        min-height: 48px;
+    }
+
+    .value-display {
         font-size: 11px;
     }
 
     .pause-overlay {
-        font-size: 20px;
+        font-size: 24px;
     }
 
     .pause-overlay .sub-text {
-        font-size: 11px;
+        font-size: 12px;
     }
 }
 
-/* Animation classes */
-.target-glow {
-    animation: glow 2s ease-in-out infinite alternate;
-}
-
-@keyframes glow {
-    from {
-        box-shadow: 0 0 5px currentColor;
-    }
-    to {
-        box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
-    }
-}
-
-.fade-in {
-    animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
+/* Prevent text selection and scrolling on touch devices */
+@media (hover: none) and (pointer: coarse) {
+    body {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+        height: 100%;
     }
 }
 
-.slide-in {
-    animation: slideIn 0.3s ease-out;
+/* Hide scrollbars */
+.settings-panel::-webkit-scrollbar {
+    width: 6px;
 }
 
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-    }
-    to {
-        transform: translateX(0);
-    }
+.settings-panel::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
 }
 
-/* Additional utility classes */
-.hidden {
-    display: none;
+.settings-panel::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
 }
 
-.visible {
-    display: block;
+.settings-panel::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
 }

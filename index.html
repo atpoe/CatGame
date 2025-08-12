@@ -6,7 +6,6 @@
     <title>Cat Game - Chase the Target</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-
 <body class="game-running">
 <div class="instructions">Cat Game: Watch the target move! Press 'S' for settings, Spacebar to pause</div>
 <div class="game-status" id="gameStatus">Game Running</div>
@@ -42,14 +41,14 @@
             <option value="zigzag">Zigzag</option>
             <option value="edges">Edge Bouncing</option>
             <option value="spiral">Spiral</option>
-            <option value="mouse">Mouse Control</option>
+            <option value="mouse">Touch/Mouse Control</option>
         </select>
     </div>
 
     <div class="setting-group">
         <label for="targetSize">Target Size:</label>
-        <input type="range" id="targetSize" min="10" max="50" value="20" oninput="updateTargetSize(this.value)">
-        <div class="value-display" id="sizeDisplay">20px</div>
+        <input type="range" id="targetSize" min="15" max="80" value="25" oninput="updateTargetSize(this.value)">
+        <div class="value-display" id="sizeDisplay">25px</div>
     </div>
 
     <div class="setting-group">
@@ -80,13 +79,14 @@
 
     let isMoving = true;
     let moveTimeout;
+    let isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    // Settings
+    // Settings with mobile-friendly defaults
     let settings = {
         objectType: 'dot',
         speed: 2000,
         movementType: 'random',
-        targetSize: 20,
+        targetSize: isMobileDevice ? 35 : 25, // Larger default for mobile
         targetColor: '#ff0000',
         wormLength: 8,
         animationSpeed: 0.8
@@ -106,8 +106,8 @@
     let wormIsJiggling = false;
     let wormJiggleIntensity = 0;
 
-    // Mouse control
-    let mousePosition = { x: 0, y: 0 };
+    // Touch/Mouse control
+    let inputPosition = { x: 0, y: 0 };
 
     function updateCursorVisibility() {
         const body = document.body;
@@ -117,7 +117,7 @@
         if (isMoving && !isSettingsOpen) {
             body.className = 'game-running';
             if (isMouseControl) {
-                gameStatus.textContent = 'Mouse Control Active';
+                gameStatus.textContent = isMobileDevice ? 'Touch Control Active' : 'Mouse Control Active';
             } else {
                 gameStatus.textContent = 'Game Running';
             }
@@ -145,10 +145,10 @@
 
         if (type === 'worm') {
             initializeWorm();
-            chaseTarget.style.display = 'none'; // Hide main target for worm
+            chaseTarget.style.display = 'none';
         } else {
             clearWormSegments();
-            chaseTarget.style.display = 'block'; // Show main target for others
+            chaseTarget.style.display = 'block';
         }
 
         updateTargetAppearance();
@@ -175,7 +175,6 @@
         chaseTarget.style.height = size + 'px';
         document.getElementById('sizeDisplay').textContent = size + 'px';
 
-        // Fix mouse emoji size
         if (settings.objectType === 'mouse') {
             chaseTarget.style.fontSize = size + 'px';
             chaseTarget.style.lineHeight = size + 'px';
@@ -196,7 +195,7 @@
         document.getElementById('lengthDisplay').textContent = length + ' segments';
 
         if (settings.objectType === 'worm') {
-            initializeWorm(); // Reinitialize with new length
+            initializeWorm();
         }
     }
 
@@ -207,7 +206,6 @@
     }
 
     function updateTransitionMode() {
-        // Remove transitions for mouse control mode
         if (settings.movementType === 'mouse') {
             chaseTarget.style.transition = 'none';
         } else {
@@ -232,7 +230,6 @@
                 chaseTarget.style.lineHeight = settings.targetSize + 'px';
                 break;
             case 'worm':
-                // Worm appearance is handled by segments
                 break;
         }
     }
@@ -281,88 +278,81 @@
     }
 
     function updateWormSize() {
-        wormSegments.forEach((segment, index) => {
-            const segmentSize = settings.targetSize * (1 - (index * 0.08));
+        wormSegments.forEach((segment, i) => {
+            const segmentSize = settings.targetSize * (1 - (i * 0.08));
             segment.element.style.width = segmentSize + 'px';
             segment.element.style.height = segmentSize + 'px';
         });
     }
 
-    function startWormJiggle() {
-        wormIsJiggling = true;
-        wormJiggleTimer = 30; // frames
-        wormJiggleIntensity = 8;
-    }
-
     function updateWormPhysics() {
         if (wormSegments.length === 0) return;
 
-        // Handle jiggling animation
-        if (wormIsJiggling) {
-            wormJiggleTimer--;
-            wormJiggleIntensity *= 0.92; // Decay
+        const springStrength = 0.15;
+        const damping = 0.8;
+        const segmentDistance = 12;
 
-            wormSegments.forEach((segment, index) => {
-                const jiggleAmount = wormJiggleIntensity * (1 - index * 0.1);
-                segment.jiggleX = (Math.random() - 0.5) * jiggleAmount;
-                segment.jiggleY = (Math.random() - 0.5) * jiggleAmount;
-            });
+        for (let i = wormSegments.length - 1; i >= 0; i--) {
+            const segment = wormSegments[i];
 
-            if (wormJiggleTimer <= 0) {
-                wormIsJiggling = false;
-                wormSegments.forEach(segment => {
-                    segment.jiggleX = 0;
-                    segment.jiggleY = 0;
-                });
+            if (i === 0) {
+                const headSpring = 0.08;
+                segment.targetX = wormTarget.x + (Math.random() - 0.5) * wormJiggleIntensity;
+                segment.targetY = wormTarget.y + (Math.random() - 0.5) * wormJiggleIntensity;
+
+                segment.x += (segment.targetX - segment.x) * headSpring;
+                segment.y += (segment.targetY - segment.y) * headSpring;
+            } else {
+                const prevSegment = wormSegments[i - 1];
+                const distance = Math.sqrt((segment.x - prevSegment.x) ** 2 + (segment.y - prevSegment.y) ** 2);
+
+                if (distance > segmentDistance) {
+                    const angle = Math.atan2(segment.y - prevSegment.y, segment.x - prevSegment.x);
+                    segment.targetX = prevSegment.x + Math.cos(angle) * segmentDistance;
+                    segment.targetY = prevSegment.y + Math.sin(angle) * segmentDistance;
+                }
+
+                segment.x += (segment.targetX - segment.x) * springStrength;
+                segment.y += (segment.targetY - segment.y) * springStrength;
+
+                segment.x *= damping;
+                segment.y *= damping;
             }
+
+            if (wormIsJiggling) {
+                segment.jiggleX = (Math.random() - 0.5) * wormJiggleIntensity * 0.3;
+                segment.jiggleY = (Math.random() - 0.5) * wormJiggleIntensity * 0.3;
+            } else {
+                segment.jiggleX *= 0.9;
+                segment.jiggleY *= 0.9;
+            }
+
+            segment.element.style.left = (segment.x + segment.jiggleX) + 'px';
+            segment.element.style.top = (segment.y + segment.jiggleY) + 'px';
+            segment.element.style.backgroundColor = settings.targetColor;
         }
 
-        // Update head position
-        const head = wormSegments[0];
-        const headSpeed = settings.movementType === 'mouse' ? 0.8 : 0.15; // Much faster for mouse control
-        head.targetX = wormTarget.x;
-        head.targetY = wormTarget.y;
-
-        const headDx = head.targetX - head.x;
-        const headDy = head.targetY - head.y;
-        head.x += headDx * headSpeed;
-        head.y += headDy * headSpeed;
-
-        head.element.style.left = (head.x + head.jiggleX) + 'px';
-        head.element.style.top = (head.y + head.jiggleY) + 'px';
-
-        // Update following segments with realistic physics
-        for (let i = 1; i < wormSegments.length; i++) {
-            const current = wormSegments[i];
-            const target = wormSegments[i - 1];
-
-            const optimalDistance = settings.targetSize * 0.7;
-            const dx = target.x - current.x;
-            const dy = target.y - current.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance > optimalDistance) {
-                const pullStrength = Math.min(0.4, (distance - optimalDistance) / optimalDistance);
-                current.x += dx * pullStrength;
-                current.y += dy * pullStrength;
+        if (wormIsJiggling) {
+            wormJiggleTimer--;
+            if (wormJiggleTimer <= 0) {
+                wormIsJiggling = false;
+                wormJiggleIntensity = 0;
             }
-
-            // Add some organic sway (less for mouse control)
-            const swayAmount = settings.movementType === 'mouse' ? 0.2 : 0.5;
-            current.x += Math.sin(Date.now() * 0.001 + i) * swayAmount;
-            current.y += Math.cos(Date.now() * 0.0008 + i) * swayAmount * 0.5;
-
-            current.element.style.left = (current.x + current.jiggleX) + 'px';
-            current.element.style.top = (current.y + current.jiggleY) + 'px';
         }
     }
 
+    function startWormJiggle() {
+        wormIsJiggling = true;
+        wormJiggleTimer = 60;
+        wormJiggleIntensity = 15;
+    }
+
     function getRandomPosition() {
-        const maxX = window.innerWidth - settings.targetSize;
-        const maxY = window.innerHeight - settings.targetSize;
-        const x = Math.random() * maxX;
-        const y = Math.random() * maxY;
-        return { x, y };
+        const margin = settings.targetSize;
+        return {
+            x: Math.random() * (window.innerWidth - margin * 2) + margin,
+            y: Math.random() * (window.innerHeight - margin * 2) + margin
+        };
     }
 
     function getCircularPosition() {
@@ -370,42 +360,43 @@
         const centerY = window.innerHeight / 2;
         const radius = Math.min(centerX, centerY) * 0.7;
 
-        circularAngle += 0.3;
-        const x = centerX + Math.cos(circularAngle) * radius - settings.targetSize / 2;
-        const y = centerY + Math.sin(circularAngle) * radius - settings.targetSize / 2;
+        circularAngle += 0.1;
 
-        return { x, y };
+        return {
+            x: centerX + Math.cos(circularAngle) * radius - settings.targetSize / 2,
+            y: centerY + Math.sin(circularAngle) * radius - settings.targetSize / 2
+        };
     }
 
     function getZigzagPosition() {
-        const maxX = window.innerWidth - settings.targetSize;
-        const maxY = window.innerHeight - settings.targetSize;
+        const centerX = window.innerWidth / 2;
+        const amplitude = window.innerWidth * 0.3;
 
-        let x = Math.random() * maxX;
-        let y = Math.random() * maxY * 0.3;
+        zigzagDirection += 0.2;
 
-        if (zigzagDirection > 0) {
-            y += maxY * 0.7;
-        }
-
-        zigzagDirection *= -1;
-        return { x, y };
+        return {
+            x: centerX + Math.sin(zigzagDirection) * amplitude - settings.targetSize / 2,
+            y: 50 + (zigzagDirection * 30) % (window.innerHeight - 100)
+        };
     }
 
     function getEdgePosition() {
-        const speed = 15;
-        edgePosition.x += edgePosition.direction.x * speed;
-        edgePosition.y += edgePosition.direction.y * speed;
+        const margin = settings.targetSize;
+        const maxX = window.innerWidth - margin;
+        const maxY = window.innerHeight - margin;
 
-        if (edgePosition.x <= 0 || edgePosition.x >= window.innerWidth - settings.targetSize) {
+        edgePosition.x += edgePosition.direction.x * 3;
+        edgePosition.y += edgePosition.direction.y * 3;
+
+        if (edgePosition.x <= 0 || edgePosition.x >= maxX) {
             edgePosition.direction.x *= -1;
-        }
-        if (edgePosition.y <= 0 || edgePosition.y >= window.innerHeight - settings.targetSize) {
-            edgePosition.direction.y *= -1;
+            edgePosition.x = Math.max(0, Math.min(maxX, edgePosition.x));
         }
 
-        edgePosition.x = Math.max(0, Math.min(edgePosition.x, window.innerWidth - settings.targetSize));
-        edgePosition.y = Math.max(0, Math.min(edgePosition.y, window.innerHeight - settings.targetSize));
+        if (edgePosition.y <= 0 || edgePosition.y >= maxY) {
+            edgePosition.direction.y *= -1;
+            edgePosition.y = Math.max(0, Math.min(maxY, edgePosition.y));
+        }
 
         return { x: edgePosition.x, y: edgePosition.y };
     }
@@ -430,10 +421,10 @@
         };
     }
 
-    function getMousePosition() {
+    function getInputPosition() {
         return {
-            x: mousePosition.x - settings.targetSize / 2,
-            y: mousePosition.y - settings.targetSize / 2
+            x: inputPosition.x - settings.targetSize / 2,
+            y: inputPosition.y - settings.targetSize / 2
         };
     }
 
@@ -443,7 +434,7 @@
             case 'zigzag': return getZigzagPosition();
             case 'edges': return getEdgePosition();
             case 'spiral': return getSpiralPosition();
-            case 'mouse': return getMousePosition();
+            case 'mouse': return getInputPosition();
             default: return getRandomPosition();
         }
     }
@@ -456,7 +447,7 @@
                 wormTarget.x = position.x;
                 wormTarget.y = position.y;
                 if (settings.movementType !== 'mouse') {
-                    startWormJiggle(); // Start jiggle when moving to new position (except mouse control)
+                    startWormJiggle();
                 }
             } else {
                 chaseTarget.style.left = position.x + 'px';
@@ -468,7 +459,6 @@
     function scheduleNextMove() {
         if (moveTimeout) clearTimeout(moveTimeout);
 
-        // Don't schedule automatic movement for mouse control
         if (settings.movementType === 'mouse') {
             return;
         }
@@ -477,7 +467,6 @@
             Math.random() * (settings.speed - 1000) + 1000 :
             settings.speed / 3;
 
-        // Add extra delay for worm to show jiggling
         const delay = settings.objectType === 'worm' ? baseDelay + 1000 : baseDelay;
 
         moveTimeout = setTimeout(() => {
@@ -490,7 +479,6 @@
         if (moveTimeout) clearTimeout(moveTimeout);
         if (isMoving) {
             if (settings.movementType === 'mouse') {
-                // For mouse control, just update position immediately
                 moveTarget();
             } else {
                 moveTarget();
@@ -509,7 +497,6 @@
         updateCursorVisibility();
     }
 
-    // Worm physics animation loop
     function wormAnimationLoop() {
         if (settings.objectType === 'worm') {
             updateWormPhysics();
@@ -517,12 +504,18 @@
         requestAnimationFrame(wormAnimationLoop);
     }
 
-    // Mouse control update loop - runs at 60fps for smooth movement
-    function mouseControlLoop() {
+    function inputControlLoop() {
         if (settings.movementType === 'mouse' && isMoving) {
             moveTarget();
         }
-        requestAnimationFrame(mouseControlLoop);
+        requestAnimationFrame(inputControlLoop);
+    }
+
+    // Initialize mobile defaults
+    if (isMobileDevice) {
+        document.getElementById('targetSize').value = settings.targetSize;
+        document.getElementById('sizeDisplay').textContent = settings.targetSize + 'px';
+        updateTargetSize(settings.targetSize);
     }
 
     // Start the game
@@ -532,7 +525,7 @@
     updateTargetAppearance();
     updateTransitionMode();
     wormAnimationLoop();
-    mouseControlLoop();
+    inputControlLoop();
 
     // Event listeners
     document.addEventListener('keydown', (event) => {
@@ -545,10 +538,44 @@
         }
     });
 
-    // Mouse control event listener - updates immediately
+    // Mouse control event listener
     document.addEventListener('mousemove', (event) => {
-        mousePosition.x = event.clientX;
-        mousePosition.y = event.clientY;
+        inputPosition.x = event.clientX;
+        inputPosition.y = event.clientY;
+    });
+
+    // Touch control event listeners
+    document.addEventListener('touchstart', (event) => {
+        event.preventDefault();
+        if (event.touches.length > 0) {
+            inputPosition.x = event.touches[0].clientX;
+            inputPosition.y = event.touches[0].clientY;
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchmove', (event) => {
+        event.preventDefault();
+        if (event.touches.length > 0) {
+            inputPosition.x = event.touches[0].clientX;
+            inputPosition.y = event.touches[0].clientY;
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', (event) => {
+        event.preventDefault();
+    }, { passive: false });
+
+    // Prevent scrolling and zooming on mobile
+    document.addEventListener('gesturestart', (event) => {
+        event.preventDefault();
+    });
+
+    document.addEventListener('gesturechange', (event) => {
+        event.preventDefault();
+    });
+
+    document.addEventListener('gestureend', (event) => {
+        event.preventDefault();
     });
 
     window.addEventListener('resize', () => {
@@ -561,8 +588,16 @@
     edgePosition.x = Math.random() * (window.innerWidth - settings.targetSize);
     edgePosition.y = Math.random() * (window.innerHeight - settings.targetSize);
 
-    // Click anywhere to resume when paused (except on settings)
+    // Click/Touch anywhere to resume when paused
     document.addEventListener('click', (event) => {
+        if (!isMoving && !settingsPanel.contains(event.target) &&
+            !event.target.classList.contains('settings-toggle')) {
+            togglePause();
+        }
+    });
+
+    // Touch to resume (for mobile)
+    document.addEventListener('touchstart', (event) => {
         if (!isMoving && !settingsPanel.contains(event.target) &&
             !event.target.classList.contains('settings-toggle')) {
             togglePause();
