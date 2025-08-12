@@ -1,0 +1,278 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #000;
+    overflow: hidden;
+    height: 100vh;
+    font-family: Arial, sans-serif;
+}
+
+body.game-running {
+    cursor: none;
+}
+
+body.game-paused {
+    cursor: default;
+}
+
+/* Base target styling */
+#chase-target {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    transition: all 0.8s ease-in-out;
+    z-index: 1000;
+}
+
+/* Dot target */
+.target-dot {
+    background-color: #ff0000;
+    box-shadow: 0 0 15px #ff0000;
+}
+
+/* Mouse target */
+.target-mouse {
+    background-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    border-radius: 0;
+}
+
+/* Worm target (head) */
+.target-worm {
+    background-color: #ff0000;
+    box-shadow: 0 0 10px #ff0000;
+}
+
+/* Worm segments */
+.worm-segment {
+    position: absolute;
+    border-radius: 50%;
+    transition: all 0.1s ease-out;
+    z-index: 999;
+}
+
+.instructions {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    color: #333;
+    font-size: 12px;
+    opacity: 0.7;
+    z-index: 100;
+}
+
+.game-status {
+    position: fixed;
+    top: 30px;
+    left: 10px;
+    color: #666;
+    font-size: 10px;
+    opacity: 0.8;
+    z-index: 100;
+}
+
+.settings-toggle {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 12px;
+    z-index: 200;
+}
+
+.settings-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.settings-panel {
+    position: fixed;
+    top: 50px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    color: white;
+    font-size: 12px;
+    z-index: 200;
+    display: none;
+    min-width: 200px;
+    backdrop-filter: blur(10px);
+}
+
+.settings-panel.visible {
+    display: block;
+}
+
+.setting-group {
+    margin-bottom: 15px;
+}
+
+.setting-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.setting-group input,
+.setting-group select {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #444;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 3px;
+}
+
+.setting-group select {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.setting-group select option {
+    background: rgba(0, 0, 0, 0.95);
+    color: white;
+    border: none;
+    padding: 5px;
+}
+
+.setting-group select option:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.setting-group select option:checked {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.setting-group input[type="range"] {
+    cursor: pointer;
+}
+
+.setting-group input[type="color"] {
+    height: 30px;
+    cursor: pointer;
+    border: 2px solid #444;
+}
+
+.value-display {
+    color: #ff6666;
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.pause-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 24px;
+    font-weight: bold;
+    z-index: 150;
+    display: none;
+    text-align: center;
+}
+
+.pause-overlay.visible {
+    display: block;
+}
+
+.pause-overlay .sub-text {
+    font-size: 12px;
+    margin-top: 10px;
+    opacity: 0.8;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .settings-panel {
+        right: 5px;
+        left: 5px;
+        top: 40px;
+        min-width: auto;
+    }
+
+    .instructions {
+        font-size: 10px;
+        left: 5px;
+    }
+
+    .settings-toggle {
+        right: 5px;
+        padding: 3px 6px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-panel {
+        padding: 15px;
+        font-size: 11px;
+    }
+
+    .pause-overlay {
+        font-size: 20px;
+    }
+
+    .pause-overlay .sub-text {
+        font-size: 11px;
+    }
+}
+
+/* Animation classes */
+.target-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+    from {
+        box-shadow: 0 0 5px currentColor;
+    }
+    to {
+        box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+/* Additional utility classes */
+.hidden {
+    display: none;
+}
+
+.visible {
+    display: block;
+}
