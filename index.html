@@ -19,95 +19,221 @@
 
 <div class="settings-panel" id="settingsPanel">
     <div class="setting-group">
-        <label for="objectType">Chase Target:</label>
+        <label for="targetCount">Number of Targets:</label>
+        <input type="range" id="targetCount" min="1" max="8" value="1" oninput="updateTargetCount(this.value)">
+        <div class="value-display" id="countDisplay">1 target</div>
+    </div>
+
+    <div class="setting-group">
+        <label for="objectType">Object Type:</label>
         <select id="objectType" onchange="updateObjectType(this.value)">
             <option value="dot">Red Dot</option>
-            <option value="mouse">Mouse</option>
-            <option value="worm">Worm (Physics)</option>
+            <option value="mouse">Mouse 🐭</option>
+            <option value="worm">Worm</option>
         </select>
     </div>
 
     <div class="setting-group">
         <label for="speed">Movement Speed:</label>
-        <input type="range" id="speed" min="500" max="5000" value="2000" oninput="updateSpeed(this.value)">
+        <input type="range" id="speed" min="500" max="5000" step="100" value="2000" oninput="updateSpeed(this.value)">
         <div class="value-display" id="speedDisplay">2.0s</div>
     </div>
 
     <div class="setting-group">
-        <label for="movementType">Movement Type:</label>
+        <label for="idleTime">Idle Time:</label>
+        <input type="range" id="idleTime" min="0" max="3000" step="100" value="1000" oninput="updateIdleTime(this.value)">
+        <div class="value-display" id="idleDisplay">1.0s</div>
+    </div>
+
+    <div class="setting-group">
+        <label for="movementType">Movement Pattern:</label>
         <select id="movementType" onchange="updateMovementType(this.value)">
             <option value="random">Random</option>
-            <option value="circular">Circular</option>
-            <option value="zigzag">Zigzag</option>
-            <option value="edges">Edge Bouncing</option>
-            <option value="spiral">Spiral</option>
-            <option value="mouse">Touch/Mouse Control</option>
+            <option value="circular">Orbital Motion</option>
+            <option value="zigzag">Wave Scanner</option>
+            <option value="edges">Perimeter Patrol</option>
+            <option value="spiral">Dynamic Spiral</option>
+            <option value="mouse">Mouse Control</option>
         </select>
     </div>
 
     <div class="setting-group">
         <label for="targetSize">Target Size:</label>
-        <input type="range" id="targetSize" min="15" max="80" value="25" oninput="updateTargetSize(this.value)">
-        <div class="value-display" id="sizeDisplay">25px</div>
+        <input type="range" id="targetSize" min="10" max="60" value="20" oninput="updateTargetSize(this.value)">
+        <div class="value-display" id="sizeDisplay">20px</div>
     </div>
 
     <div class="setting-group">
         <label for="targetColor">Target Color:</label>
-        <input type="color" id="targetColor" value="#ff0000" onchange="updateTargetColor(this.value)">
+        <input type="color" id="targetColor" value="#ff0000" oninput="updateTargetColor(this.value)">
     </div>
 
-    <div class="setting-group">
+    <div class="setting-group worm-only">
         <label for="wormLength">Worm Length:</label>
-        <input type="range" id="wormLength" min="3" max="15" value="8" oninput="updateWormLength(this.value)">
+        <input type="range" id="wormLength" min="3" max="20" value="8" oninput="updateWormLength(this.value)">
         <div class="value-display" id="lengthDisplay">8 segments</div>
-    </div>
-
-    <div class="setting-group">
-        <label for="animationSpeed">Animation Speed:</label>
-        <input type="range" id="animationSpeed" min="0.1" max="3" step="0.1" value="0.8" oninput="updateAnimationSpeed(this.value)">
-        <div class="value-display" id="animationDisplay">0.8s</div>
     </div>
 </div>
 
-<div id="chase-target" class="target-dot"></div>
-
 <script>
-    const chaseTarget = document.getElementById('chase-target');
     const gameStatus = document.getElementById('gameStatus');
     const pauseOverlay = document.getElementById('pauseOverlay');
     const settingsPanel = document.getElementById('settingsPanel');
 
     let isMoving = true;
-    let moveTimeout;
-    let isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    let targets = [];
+    let animationFrameId = null;
+    let startTime = Date.now();
+    let randomMoveTimeouts = [];
 
-    // Settings with mobile-friendly defaults
+    // Settings
     let settings = {
+        targetCount: 1,
         objectType: 'dot',
         speed: 2000,
+        idleTime: 1000,
         movementType: 'random',
-        targetSize: isMobileDevice ? 35 : 25, // Larger default for mobile
+        targetSize: 20,
         targetColor: '#ff0000',
         wormLength: 8,
         animationSpeed: 0.8
     };
 
-    // Movement patterns
-    let circularAngle = 0;
-    let zigzagDirection = 1;
-    let spiralRadius = 50;
-    let spiralAngle = 0;
-    let edgePosition = { x: 0, y: 0, direction: { x: 1, y: 1 } };
+    // Movement patterns (per target)
+    let targetStates = [];
 
-    // Worm physics
-    let wormSegments = [];
-    let wormTarget = { x: 0, y: 0 };
-    let wormJiggleTimer = 0;
-    let wormIsJiggling = false;
-    let wormJiggleIntensity = 0;
+    // Mouse control
+    let mousePosition = { x: 0, y: 0 };
 
-    // Touch/Mouse control
-    let inputPosition = { x: 0, y: 0 };
+    function initializeTargetStates() {
+        while (targetStates.length < settings.targetCount) {
+            const index = targetStates.length;
+            targetStates.push({
+                // Orbital motion - full screen
+                orbitRadius: 50 + Math.random() * 150,
+                orbitSpeed: 0.0003 + (index * 0.0001),
+                orbitCenterX: Math.random() * window.innerWidth,
+                orbitCenterY: Math.random() * window.innerHeight,
+                orbitCenterSpeedX: (Math.random() - 0.5) * 0.5,
+                orbitCenterSpeedY: (Math.random() - 0.5) * 0.5,
+
+                // Wave scanner - slower movement
+                scanDirection: index % 2 === 0 ? 1 : -1,
+                wavePhase: index * Math.PI / 2,
+                scanSpeed: 0.0003 + (index * 0.0001),
+                scanCenterY: Math.random() * window.innerHeight,
+                scanAmplitude: 50 + Math.random() * 100,
+
+                // Perimeter patrol
+                perimeterProgress: (index / settings.targetCount) * 2 * Math.PI,
+                perimeterSpeed: 0.0008 + (index * 0.0002),
+                perimeterDirection: index % 2 === 0 ? 1 : -1,
+
+                // Dynamic spiral - full screen
+                spiralAngle: index * Math.PI / 2,
+                spiralRadius: 30 + (index * 15),
+                spiralDirection: 1,
+                spiralSpeed: 0.001 + (index * 0.0003),
+                spiralRadiusSpeed: 0.3,
+                spiralCenterX: Math.random() * window.innerWidth,
+                spiralCenterY: Math.random() * window.innerHeight,
+                spiralCenterSpeedX: (Math.random() - 0.5) * 0.3,
+                spiralCenterSpeedY: (Math.random() - 0.5) * 0.3,
+
+                // Worm data
+                wormSegments: [],
+                wormTarget: { x: 0, y: 0 },
+                wormJiggleTimer: 0,
+                wormIsJiggling: false,
+                wormJiggleIntensity: 0
+            });
+        }
+    }
+
+    function createTarget(index) {
+        const target = document.createElement('div');
+        target.id = `target-${index}`;
+        target.className = `target-${settings.objectType}`;
+        target.style.position = 'absolute';
+        target.style.width = settings.targetSize + 'px';
+        target.style.height = settings.targetSize + 'px';
+        target.style.borderRadius = '50%';
+        target.style.left = Math.random() * (window.innerWidth - settings.targetSize) + 'px';
+        target.style.top = Math.random() * (window.innerHeight - settings.targetSize) + 'px';
+        target.style.transition = 'none';
+        document.body.appendChild(target);
+        return target;
+    }
+
+    function updateTargetCount(count) {
+        settings.targetCount = parseInt(count);
+        document.getElementById('countDisplay').textContent = count + (count === '1' ? ' target' : ' targets');
+
+        clearAllTargets();
+        initializeTargetStates();
+
+        for (let i = 0; i < settings.targetCount; i++) {
+            const target = createTarget(i);
+            targets.push(target);
+
+            if (settings.objectType === 'worm') {
+                initializeWorm(i);
+                target.style.display = 'none';
+            }
+        }
+
+        updateAllTargetAppearance();
+        updateTransitionModes();
+        restartAnimation();
+    }
+
+    function clearAllTargets() {
+        targets.forEach(target => {
+            if (target.parentNode) {
+                target.parentNode.removeChild(target);
+            }
+        });
+        targets = [];
+
+        targetStates.forEach(state => clearWormSegments(state));
+    }
+
+    function clearWormSegments(state) {
+        if (state.wormSegments) {
+            state.wormSegments.forEach(segment => {
+                if (segment.element && segment.element.parentNode) {
+                    segment.element.parentNode.removeChild(segment.element);
+                }
+            });
+            state.wormSegments = [];
+        }
+    }
+
+    function updateAllTargetAppearance() {
+        targets.forEach((target, i) => {
+            if (settings.objectType === 'mouse') {
+                target.textContent = '🐭';
+                target.style.fontSize = settings.targetSize + 'px';
+                target.style.lineHeight = settings.targetSize + 'px';
+                target.style.textAlign = 'center';
+                target.style.backgroundColor = 'transparent';
+            } else if (settings.objectType === 'dot') {
+                target.textContent = '';
+                target.style.backgroundColor = settings.targetColor;
+            }
+        });
+    }
+
+    function updateTransitionModes() {
+        targets.forEach((target, i) => {
+            if (settings.movementType === 'random') {
+                const transitionDuration = (settings.speed / 1000).toFixed(1);
+                target.style.transition = `all ${transitionDuration}s ease-in-out`;
+            } else {
+                target.style.transition = 'none';
+            }
+        });
+    }
 
     function updateCursorVisibility() {
         const body = document.body;
@@ -117,7 +243,7 @@
         if (isMoving && !isSettingsOpen) {
             body.className = 'game-running';
             if (isMouseControl) {
-                gameStatus.textContent = isMobileDevice ? 'Touch Control Active' : 'Mouse Control Active';
+                gameStatus.textContent = 'Mouse Control Active';
             } else {
                 gameStatus.textContent = 'Game Running';
             }
@@ -141,53 +267,107 @@
 
     function updateObjectType(type) {
         settings.objectType = type;
-        chaseTarget.className = `target-${type}`;
 
-        if (type === 'worm') {
-            initializeWorm();
-            chaseTarget.style.display = 'none';
-        } else {
-            clearWormSegments();
-            chaseTarget.style.display = 'block';
-        }
+        targetStates.forEach(state => clearWormSegments(state));
 
-        updateTargetAppearance();
-        updateTransitionMode();
-        restartMovement();
+        targets.forEach((target, i) => {
+            target.className = `target-${type}`;
+            if (type === 'worm') {
+                initializeWorm(i);
+                target.style.display = 'none';
+            } else {
+                target.style.display = 'block';
+            }
+        });
+
+        updateAllTargetAppearance();
+        updateTransitionModes();
+        restartAnimation();
     }
 
     function updateSpeed(value) {
         settings.speed = parseInt(value);
         document.getElementById('speedDisplay').textContent = (value / 1000).toFixed(1) + 's';
-        restartMovement();
+
+        updateTransitionModes();
+
+        const speedMultiplier = 2000 / settings.speed;
+        targetStates.forEach((state, index) => {
+            state.orbitSpeed = (0.0003 + (index * 0.0001)) * speedMultiplier;
+            state.scanSpeed = (0.0003 + (index * 0.0001)) * speedMultiplier;
+            state.perimeterSpeed = (0.0008 + (index * 0.0002)) * speedMultiplier;
+            state.spiralSpeed = (0.001 + (index * 0.0003)) * speedMultiplier;
+        });
+
+        if (settings.movementType === 'random') {
+            restartRandomMovement();
+        }
+    }
+
+    function updateIdleTime(value) {
+        settings.idleTime = parseInt(value);
+        document.getElementById('idleDisplay').textContent = (value / 1000).toFixed(1) + 's';
+
+        if (settings.movementType === 'random') {
+            restartRandomMovement();
+        }
     }
 
     function updateMovementType(type) {
         settings.movementType = type;
         updateCursorVisibility();
-        updateTransitionMode();
-        restartMovement();
+        updateTransitionModes();
+
+        if (type !== 'random') {
+            randomMoveTimeouts.forEach(timeout => {
+                if (timeout) clearTimeout(timeout);
+            });
+            randomMoveTimeouts = [];
+        }
+
+        restartAnimation();
     }
 
     function updateTargetSize(size) {
         settings.targetSize = parseInt(size);
-        chaseTarget.style.width = size + 'px';
-        chaseTarget.style.height = size + 'px';
         document.getElementById('sizeDisplay').textContent = size + 'px';
 
-        if (settings.objectType === 'mouse') {
-            chaseTarget.style.fontSize = size + 'px';
-            chaseTarget.style.lineHeight = size + 'px';
-        }
+        targets.forEach(target => {
+            target.style.width = size + 'px';
+            target.style.height = size + 'px';
+
+            if (settings.objectType === 'mouse') {
+                target.style.fontSize = size + 'px';
+                target.style.lineHeight = size + 'px';
+            }
+        });
 
         if (settings.objectType === 'worm') {
-            updateWormSize();
+            targetStates.forEach((state, i) => initializeWorm(i));
         }
     }
 
     function updateTargetColor(color) {
         settings.targetColor = color;
-        updateTargetAppearance();
+
+        targets.forEach(target => {
+            if (settings.objectType === 'dot') {
+                target.style.backgroundColor = color;
+            }
+        });
+
+        if (settings.objectType === 'worm') {
+            targetStates.forEach(state => {
+                if (state.wormSegments) {
+                    state.wormSegments.forEach((segment, i) => {
+                        segment.element.style.backgroundColor = color;
+                        if (i === 0) {
+                            segment.element.style.boxShadow = `0 0 10px ${color}`;
+                        }
+                    });
+                }
+            });
+        }
     }
 
     function updateWormLength(length) {
@@ -195,225 +375,68 @@
         document.getElementById('lengthDisplay').textContent = length + ' segments';
 
         if (settings.objectType === 'worm') {
-            initializeWorm();
+            targetStates.forEach((state, i) => initializeWorm(i));
         }
     }
 
-    function updateAnimationSpeed(speed) {
-        settings.animationSpeed = parseFloat(speed);
-        updateTransitionMode();
-        document.getElementById('animationDisplay').textContent = speed + 's';
+    // Movement pattern functions
+    function scheduleRandomMovement(targetIndex) {
+        if (!isMoving || settings.movementType !== 'random') return;
+
+        const moveToNewPosition = () => {
+            if (!isMoving || settings.movementType !== 'random' || !targets[targetIndex]) return;
+
+            const target = targets[targetIndex];
+            const state = targetStates[targetIndex];
+
+            const newPosition = {
+                x: Math.random() * (window.innerWidth - settings.targetSize),
+                y: Math.random() * (window.innerHeight - settings.targetSize)
+            };
+
+            state.targetPos = newPosition;
+            target.style.left = newPosition.x + 'px';
+            target.style.top = newPosition.y + 'px';
+
+            const nextMove = () => scheduleRandomMovement(targetIndex);
+            const timeout = setTimeout(nextMove, settings.speed + settings.idleTime);
+            randomMoveTimeouts[targetIndex] = timeout;
+        };
+
+        const timeout = setTimeout(moveToNewPosition, settings.idleTime);
+        randomMoveTimeouts[targetIndex] = timeout;
     }
 
-    function updateTransitionMode() {
-        if (settings.movementType === 'mouse') {
-            chaseTarget.style.transition = 'none';
-        } else {
-            chaseTarget.style.transition = `all ${settings.animationSpeed}s ease-in-out`;
-        }
-    }
-
-    function updateTargetAppearance() {
-        switch (settings.objectType) {
-            case 'dot':
-                chaseTarget.style.backgroundColor = settings.targetColor;
-                chaseTarget.style.boxShadow = `0 0 15px ${settings.targetColor}`;
-                chaseTarget.innerHTML = '';
-                chaseTarget.style.fontSize = '';
-                chaseTarget.style.lineHeight = '';
-                break;
-            case 'mouse':
-                chaseTarget.style.backgroundColor = 'transparent';
-                chaseTarget.style.boxShadow = 'none';
-                chaseTarget.innerHTML = '🐭';
-                chaseTarget.style.fontSize = settings.targetSize + 'px';
-                chaseTarget.style.lineHeight = settings.targetSize + 'px';
-                break;
-            case 'worm':
-                break;
-        }
-    }
-
-    function initializeWorm() {
-        clearWormSegments();
-        const segmentCount = settings.wormLength;
-        const startX = Math.random() * (window.innerWidth - 200) + 100;
-        const startY = Math.random() * (window.innerHeight - 200) + 100;
-
-        for (let i = 0; i < segmentCount; i++) {
-            const segment = document.createElement('div');
-            segment.className = 'worm-segment';
-            const segmentSize = settings.targetSize * (1 - (i * 0.08));
-            segment.style.width = segmentSize + 'px';
-            segment.style.height = segmentSize + 'px';
-            segment.style.backgroundColor = settings.targetColor;
-            segment.style.position = 'absolute';
-            segment.style.borderRadius = '50%';
-            segment.style.opacity = (1 - (i * 0.06)).toString();
-            segment.style.boxShadow = i === 0 ? `0 0 10px ${settings.targetColor}` : 'none';
-            document.body.appendChild(segment);
-
-            wormSegments.push({
-                element: segment,
-                x: startX - (i * 12),
-                y: startY,
-                targetX: startX - (i * 12),
-                targetY: startY,
-                jiggleX: 0,
-                jiggleY: 0
-            });
-        }
-
-        wormTarget.x = startX;
-        wormTarget.y = startY;
-    }
-
-    function clearWormSegments() {
-        wormSegments.forEach(segment => {
-            if (segment.element && segment.element.parentNode) {
-                segment.element.parentNode.removeChild(segment.element);
-            }
+    function restartRandomMovement() {
+        randomMoveTimeouts.forEach(timeout => {
+            if (timeout) clearTimeout(timeout);
         });
-        wormSegments = [];
-    }
+        randomMoveTimeouts = [];
 
-    function updateWormSize() {
-        wormSegments.forEach((segment, i) => {
-            const segmentSize = settings.targetSize * (1 - (i * 0.08));
-            segment.element.style.width = segmentSize + 'px';
-            segment.element.style.height = segmentSize + 'px';
-        });
-    }
-
-    function updateWormPhysics() {
-        if (wormSegments.length === 0) return;
-
-        const springStrength = 0.15;
-        const damping = 0.8;
-        const segmentDistance = 12;
-
-        for (let i = wormSegments.length - 1; i >= 0; i--) {
-            const segment = wormSegments[i];
-
-            if (i === 0) {
-                const headSpring = 0.08;
-                segment.targetX = wormTarget.x + (Math.random() - 0.5) * wormJiggleIntensity;
-                segment.targetY = wormTarget.y + (Math.random() - 0.5) * wormJiggleIntensity;
-
-                segment.x += (segment.targetX - segment.x) * headSpring;
-                segment.y += (segment.targetY - segment.y) * headSpring;
-            } else {
-                const prevSegment = wormSegments[i - 1];
-                const distance = Math.sqrt((segment.x - prevSegment.x) ** 2 + (segment.y - prevSegment.y) ** 2);
-
-                if (distance > segmentDistance) {
-                    const angle = Math.atan2(segment.y - prevSegment.y, segment.x - prevSegment.x);
-                    segment.targetX = prevSegment.x + Math.cos(angle) * segmentDistance;
-                    segment.targetY = prevSegment.y + Math.sin(angle) * segmentDistance;
-                }
-
-                segment.x += (segment.targetX - segment.x) * springStrength;
-                segment.y += (segment.targetY - segment.y) * springStrength;
-
-                segment.x *= damping;
-                segment.y *= damping;
-            }
-
-            if (wormIsJiggling) {
-                segment.jiggleX = (Math.random() - 0.5) * wormJiggleIntensity * 0.3;
-                segment.jiggleY = (Math.random() - 0.5) * wormJiggleIntensity * 0.3;
-            } else {
-                segment.jiggleX *= 0.9;
-                segment.jiggleY *= 0.9;
-            }
-
-            segment.element.style.left = (segment.x + segment.jiggleX) + 'px';
-            segment.element.style.top = (segment.y + segment.jiggleY) + 'px';
-            segment.element.style.backgroundColor = settings.targetColor;
-        }
-
-        if (wormIsJiggling) {
-            wormJiggleTimer--;
-            if (wormJiggleTimer <= 0) {
-                wormIsJiggling = false;
-                wormJiggleIntensity = 0;
+        if (settings.movementType === 'random') {
+            for (let i = 0; i < targets.length; i++) {
+                scheduleRandomMovement(i);
             }
         }
     }
 
-    function startWormJiggle() {
-        wormIsJiggling = true;
-        wormJiggleTimer = 60;
-        wormJiggleIntensity = 15;
-    }
+    function getOrbitalPosition(state, currentTime) {
+        state.orbitCenterX += state.orbitCenterSpeedX;
+        state.orbitCenterY += state.orbitCenterSpeedY;
 
-    function getRandomPosition() {
-        const margin = settings.targetSize;
-        return {
-            x: Math.random() * (window.innerWidth - margin * 2) + margin,
-            y: Math.random() * (window.innerHeight - margin * 2) + margin
-        };
-    }
-
-    function getCircularPosition() {
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
-        const radius = Math.min(centerX, centerY) * 0.7;
-
-        circularAngle += 0.1;
-
-        return {
-            x: centerX + Math.cos(circularAngle) * radius - settings.targetSize / 2,
-            y: centerY + Math.sin(circularAngle) * radius - settings.targetSize / 2
-        };
-    }
-
-    function getZigzagPosition() {
-        const centerX = window.innerWidth / 2;
-        const amplitude = window.innerWidth * 0.3;
-
-        zigzagDirection += 0.2;
-
-        return {
-            x: centerX + Math.sin(zigzagDirection) * amplitude - settings.targetSize / 2,
-            y: 50 + (zigzagDirection * 30) % (window.innerHeight - 100)
-        };
-    }
-
-    function getEdgePosition() {
-        const margin = settings.targetSize;
-        const maxX = window.innerWidth - margin;
-        const maxY = window.innerHeight - margin;
-
-        edgePosition.x += edgePosition.direction.x * 3;
-        edgePosition.y += edgePosition.direction.y * 3;
-
-        if (edgePosition.x <= 0 || edgePosition.x >= maxX) {
-            edgePosition.direction.x *= -1;
-            edgePosition.x = Math.max(0, Math.min(maxX, edgePosition.x));
+        const margin = state.orbitRadius + settings.targetSize;
+        if (state.orbitCenterX < margin || state.orbitCenterX > window.innerWidth - margin) {
+            state.orbitCenterSpeedX *= -1;
+            state.orbitCenterX = Math.max(margin, Math.min(state.orbitCenterX, window.innerWidth - margin));
+        }
+        if (state.orbitCenterY < margin || state.orbitCenterY > window.innerHeight - margin) {
+            state.orbitCenterSpeedY *= -1;
+            state.orbitCenterY = Math.max(margin, Math.min(state.orbitCenterY, window.innerHeight - margin));
         }
 
-        if (edgePosition.y <= 0 || edgePosition.y >= maxY) {
-            edgePosition.direction.y *= -1;
-            edgePosition.y = Math.max(0, Math.min(maxY, edgePosition.y));
-        }
-
-        return { x: edgePosition.x, y: edgePosition.y };
-    }
-
-    function getSpiralPosition() {
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
-
-        spiralAngle += 0.5;
-        spiralRadius += 2;
-
-        if (spiralRadius > Math.min(centerX, centerY)) {
-            spiralRadius = 50;
-        }
-
-        const x = centerX + Math.cos(spiralAngle) * spiralRadius - settings.targetSize / 2;
-        const y = centerY + Math.sin(spiralAngle) * spiralRadius - settings.targetSize / 2;
+        const angle = currentTime * state.orbitSpeed;
+        const x = state.orbitCenterX + Math.cos(angle) * state.orbitRadius - settings.targetSize / 2;
+        const y = state.orbitCenterY + Math.sin(angle) * state.orbitRadius - settings.targetSize / 2;
 
         return {
             x: Math.max(0, Math.min(x, window.innerWidth - settings.targetSize)),
@@ -421,188 +444,286 @@
         };
     }
 
-    function getInputPosition() {
+    function getWaveScannerPosition(state, currentTime) {
+        const progress = (currentTime * state.scanSpeed) % 2;
+        let xProgress;
+
+        if (progress < 1) {
+            xProgress = progress;
+        } else {
+            xProgress = 2 - progress;
+        }
+
+        const x = xProgress * (window.innerWidth - settings.targetSize);
+        const waveY = Math.sin(currentTime * state.scanSpeed * 3 + state.wavePhase) * state.scanAmplitude * state.scanDirection;
+        const y = state.scanCenterY + waveY - settings.targetSize / 2;
+
         return {
-            x: inputPosition.x - settings.targetSize / 2,
-            y: inputPosition.y - settings.targetSize / 2
+            x: Math.max(0, Math.min(x, window.innerWidth - settings.targetSize)),
+            y: Math.max(0, Math.min(y, window.innerHeight - settings.targetSize))
         };
     }
 
-    function getPositionByType() {
-        switch (settings.movementType) {
-            case 'circular': return getCircularPosition();
-            case 'zigzag': return getZigzagPosition();
-            case 'edges': return getEdgePosition();
-            case 'spiral': return getSpiralPosition();
-            case 'mouse': return getInputPosition();
-            default: return getRandomPosition();
+    function getPerimeterPosition(state, currentTime) {
+        state.perimeterProgress += state.perimeterSpeed * state.perimeterDirection;
+
+        const margin = settings.targetSize / 2;
+        const width = window.innerWidth - margin * 2;
+        const height = window.innerHeight - margin * 2;
+        const perimeter = 2 * (width + height);
+
+        let progress = ((state.perimeterProgress % (Math.PI * 2)) / (Math.PI * 2)) * perimeter;
+        if (progress < 0) progress += perimeter;
+
+        let x, y;
+
+        if (progress < width) {
+            x = margin + progress;
+            y = margin;
+        } else if (progress < width + height) {
+            x = margin + width;
+            y = margin + (progress - width);
+        } else if (progress < 2 * width + height) {
+            x = margin + width - (progress - width - height);
+            y = margin + height;
+        } else {
+            x = margin;
+            y = margin + height - (progress - 2 * width - height);
         }
+
+        return {
+            x: Math.max(0, Math.min(x - settings.targetSize / 2, window.innerWidth - settings.targetSize)),
+            y: Math.max(0, Math.min(y - settings.targetSize / 2, window.innerHeight - settings.targetSize))
+        };
     }
 
-    function moveTarget() {
-        if (isMoving) {
-            const position = getPositionByType();
+    function getDynamicSpiralPosition(state, currentTime) {
+        state.spiralCenterX += state.spiralCenterSpeedX;
+        state.spiralCenterY += state.spiralCenterSpeedY;
 
-            if (settings.objectType === 'worm') {
-                wormTarget.x = position.x;
-                wormTarget.y = position.y;
-                if (settings.movementType !== 'mouse') {
-                    startWormJiggle();
-                }
-            } else {
-                chaseTarget.style.left = position.x + 'px';
-                chaseTarget.style.top = position.y + 'px';
-            }
+        const maxRadius = Math.min(window.innerWidth, window.innerHeight) * 0.3;
+        const margin = maxRadius + settings.targetSize;
+
+        if (state.spiralCenterX < margin || state.spiralCenterX > window.innerWidth - margin) {
+            state.spiralCenterSpeedX *= -1;
+            state.spiralCenterX = Math.max(margin, Math.min(state.spiralCenterX, window.innerWidth - margin));
         }
+        if (state.spiralCenterY < margin || state.spiralCenterY > window.innerHeight - margin) {
+            state.spiralCenterSpeedY *= -1;
+            state.spiralCenterY = Math.max(margin, Math.min(state.spiralCenterY, window.innerHeight - margin));
+        }
+
+        state.spiralAngle += state.spiralSpeed;
+        state.spiralRadius += state.spiralRadiusSpeed * state.spiralDirection;
+
+        const minRadius = 20;
+        if (state.spiralRadius > maxRadius || state.spiralRadius < minRadius) {
+            state.spiralDirection *= -1;
+            state.spiralRadius = Math.max(minRadius, Math.min(maxRadius, state.spiralRadius));
+        }
+
+        const x = state.spiralCenterX + Math.cos(state.spiralAngle) * state.spiralRadius - settings.targetSize / 2;
+        const y = state.spiralCenterY + Math.sin(state.spiralAngle) * state.spiralRadius - settings.targetSize / 2;
+
+        return {
+            x: Math.max(0, Math.min(x, window.innerWidth - settings.targetSize)),
+            y: Math.max(0, Math.min(y, window.innerHeight - settings.targetSize))
+        };
     }
 
-    function scheduleNextMove() {
-        if (moveTimeout) clearTimeout(moveTimeout);
-
-        if (settings.movementType === 'mouse') {
+    function animate() {
+        if (!isMoving) {
+            animationFrameId = requestAnimationFrame(animate);
             return;
         }
 
-        const baseDelay = settings.movementType === 'random' ?
-            Math.random() * (settings.speed - 1000) + 1000 :
-            settings.speed / 3;
+        const currentTime = Date.now() - startTime;
 
-        const delay = settings.objectType === 'worm' ? baseDelay + 1000 : baseDelay;
+        if (settings.movementType !== 'random') {
+            targets.forEach((target, i) => {
+                const state = targetStates[i];
+                let newPosition;
 
-        moveTimeout = setTimeout(() => {
-            moveTarget();
-            scheduleNextMove();
-        }, delay);
-    }
+                switch (settings.movementType) {
+                    case 'circular':
+                        newPosition = getOrbitalPosition(state, currentTime);
+                        break;
+                    case 'zigzag':
+                        newPosition = getWaveScannerPosition(state, currentTime);
+                        break;
+                    case 'edges':
+                        newPosition = getPerimeterPosition(state, currentTime);
+                        break;
+                    case 'spiral':
+                        newPosition = getDynamicSpiralPosition(state, currentTime);
+                        break;
+                    case 'mouse':
+                        newPosition = {
+                            x: mousePosition.x - settings.targetSize/2,
+                            y: mousePosition.y - settings.targetSize/2
+                        };
+                        break;
+                    default:
+                        return;
+                }
 
-    function restartMovement() {
-        if (moveTimeout) clearTimeout(moveTimeout);
-        if (isMoving) {
-            if (settings.movementType === 'mouse') {
-                moveTarget();
-            } else {
-                moveTarget();
-                scheduleNextMove();
-            }
+                if (settings.objectType === 'worm') {
+                    state.wormTarget = newPosition;
+                    if (Math.abs(state.wormTarget.x - state.wormSegments[0]?.x) > 5 ||
+                        Math.abs(state.wormTarget.y - state.wormSegments[0]?.y) > 5) {
+                        startWormJiggle(state);
+                    }
+                } else {
+                    target.style.left = newPosition.x + 'px';
+                    target.style.top = newPosition.y + 'px';
+                }
+            });
         }
-    }
 
-    function togglePause() {
-        isMoving = !isMoving;
-        if (isMoving) {
-            if (settings.movementType !== 'mouse') {
-                scheduleNextMove();
-            }
-        }
-        updateCursorVisibility();
-    }
-
-    function wormAnimationLoop() {
         if (settings.objectType === 'worm') {
-            updateWormPhysics();
+            targetStates.forEach(state => updateWormPhysics(state));
         }
-        requestAnimationFrame(wormAnimationLoop);
+
+        animationFrameId = requestAnimationFrame(animate);
     }
 
-    function inputControlLoop() {
-        if (settings.movementType === 'mouse' && isMoving) {
-            moveTarget();
+    function restartAnimation() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
         }
-        requestAnimationFrame(inputControlLoop);
+
+        startTime = Date.now();
+
+        if (settings.movementType === 'random') {
+            restartRandomMovement();
+        } else {
+            animate();
+        }
     }
 
-    // Initialize mobile defaults
-    if (isMobileDevice) {
-        document.getElementById('targetSize').value = settings.targetSize;
-        document.getElementById('sizeDisplay').textContent = settings.targetSize + 'px';
-        updateTargetSize(settings.targetSize);
+    // Worm functions
+    function initializeWorm(targetIndex) {
+        const state = targetStates[targetIndex];
+        clearWormSegments(state);
+
+        state.wormSegments = [];
+        for (let i = 0; i < settings.wormLength; i++) {
+            const segment = document.createElement('div');
+            segment.className = 'worm-segment';
+            segment.style.position = 'absolute';
+            const segmentSize = settings.targetSize * (1 - (i * 0.08));
+            segment.style.width = segmentSize + 'px';
+            segment.style.height = segmentSize + 'px';
+            segment.style.borderRadius = '50%';
+            segment.style.backgroundColor = settings.targetColor;
+            segment.style.boxShadow = i === 0 ? `0 0 10px ${settings.targetColor}` : 'none';
+            document.body.appendChild(segment);
+
+            state.wormSegments.push({
+                element: segment,
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight
+            });
+        }
     }
 
-    // Start the game
-    moveTarget();
-    scheduleNextMove();
-    updateCursorVisibility();
-    updateTargetAppearance();
-    updateTransitionMode();
-    wormAnimationLoop();
-    inputControlLoop();
+    function startWormJiggle(state) {
+        state.wormIsJiggling = true;
+        state.wormJiggleTimer = Date.now();
+        state.wormJiggleIntensity = 3;
+    }
+
+    function updateWormPhysics(state) {
+        if (!state.wormSegments || state.wormSegments.length === 0) return;
+
+        const head = state.wormSegments[0];
+        const targetX = state.wormTarget.x + settings.targetSize / 2;
+        const targetY = state.wormTarget.y + settings.targetSize / 2;
+
+        const dx = targetX - head.x;
+        const dy = targetY - head.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 2) {
+            const speed = 0.05;
+            head.x += dx * speed;
+            head.y += dy * speed;
+        }
+
+        for (let i = 1; i < state.wormSegments.length; i++) {
+            const segment = state.wormSegments[i];
+            const prevSegment = state.wormSegments[i - 1];
+
+            const segmentDistance = settings.targetSize * 0.7;
+            const dx = prevSegment.x - segment.x;
+            const dy = prevSegment.y - segment.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > segmentDistance) {
+                const angle = Math.atan2(dy, dx);
+                segment.x = prevSegment.x - Math.cos(angle) * segmentDistance;
+                segment.y = prevSegment.y - Math.sin(angle) * segmentDistance;
+            }
+        }
+
+        if (state.wormIsJiggling) {
+            const elapsed = Date.now() - state.wormJiggleTimer;
+            if (elapsed < 200) {
+                state.wormSegments.forEach((segment, i) => {
+                    const jiggle = Math.sin(elapsed * 0.1 + i) * state.wormJiggleIntensity;
+                    segment.element.style.left = (segment.x + jiggle - settings.targetSize * (1 - (i * 0.08)) / 2) + 'px';
+                    segment.element.style.top = (segment.y + jiggle - settings.targetSize * (1 - (i * 0.08)) / 2) + 'px';
+                });
+            } else {
+                state.wormIsJiggling = false;
+            }
+        }
+
+        if (!state.wormIsJiggling) {
+            state.wormSegments.forEach((segment, i) => {
+                const segmentSize = settings.targetSize * (1 - (i * 0.08));
+                segment.element.style.left = (segment.x - segmentSize / 2) + 'px';
+                segment.element.style.top = (segment.y - segmentSize / 2) + 'px';
+            });
+        }
+    }
 
     // Event listeners
-    document.addEventListener('keydown', (event) => {
-        if (event.code === 'Space') {
-            togglePause();
-            event.preventDefault();
-        } else if (event.code === 'KeyS') {
+    document.addEventListener('keydown', function(e) {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            isMoving = !isMoving;
+            updateCursorVisibility();
+            if (isMoving) {
+                restartAnimation();
+            }
+        }
+        if (e.code === 'KeyS') {
             toggleSettings();
-            event.preventDefault();
         }
     });
 
-    // Mouse control event listener
-    document.addEventListener('mousemove', (event) => {
-        inputPosition.x = event.clientX;
-        inputPosition.y = event.clientY;
+    document.addEventListener('mousemove', function(e) {
+        mousePosition.x = e.clientX;
+        mousePosition.y = e.clientY;
     });
 
-    // Touch control event listeners
-    document.addEventListener('touchstart', (event) => {
-        event.preventDefault();
-        if (event.touches.length > 0) {
-            inputPosition.x = event.touches[0].clientX;
-            inputPosition.y = event.touches[0].clientY;
+    document.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+            mousePosition.x = e.touches[0].clientX;
+            mousePosition.y = e.touches[0].clientY;
         }
     }, { passive: false });
 
-    document.addEventListener('touchmove', (event) => {
-        event.preventDefault();
-        if (event.touches.length > 0) {
-            inputPosition.x = event.touches[0].clientX;
-            inputPosition.y = event.touches[0].clientY;
-        }
-    }, { passive: false });
-
-    document.addEventListener('touchend', (event) => {
-        event.preventDefault();
-    }, { passive: false });
-
-    // Prevent scrolling and zooming on mobile
-    document.addEventListener('gesturestart', (event) => {
-        event.preventDefault();
+    window.addEventListener('resize', function() {
+        initializeTargetStates();
     });
 
-    document.addEventListener('gesturechange', (event) => {
-        event.preventDefault();
-    });
-
-    document.addEventListener('gestureend', (event) => {
-        event.preventDefault();
-    });
-
-    window.addEventListener('resize', () => {
-        if (isMoving) {
-            moveTarget();
-        }
-    });
-
-    // Initialize edge position
-    edgePosition.x = Math.random() * (window.innerWidth - settings.targetSize);
-    edgePosition.y = Math.random() * (window.innerHeight - settings.targetSize);
-
-    // Click/Touch anywhere to resume when paused
-    document.addEventListener('click', (event) => {
-        if (!isMoving && !settingsPanel.contains(event.target) &&
-            !event.target.classList.contains('settings-toggle')) {
-            togglePause();
-        }
-    });
-
-    // Touch to resume (for mobile)
-    document.addEventListener('touchstart', (event) => {
-        if (!isMoving && !settingsPanel.contains(event.target) &&
-            !event.target.classList.contains('settings-toggle')) {
-            togglePause();
-        }
-    });
+    // Initialize
+    initializeTargetStates();
+    updateTargetCount(1);
+    restartAnimation();
 </script>
 </body>
 </html>
