@@ -357,3 +357,9 @@ body.game-paused {
 .settings-panel::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
 }
+
+.settings-toggle {
+    min-width: 48px;  /* Better for touch */
+    min-height: 48px;
+    touch-action: manipulation;
+}
